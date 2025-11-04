@@ -2,7 +2,7 @@
 import os
 from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
-from langchain.chains import RetrievalQA
+from langchain.chains.retrieval_qa.base import RetrievalQA
 from langchain.chat_models import ChatOpenAI
 from langchain_community.vectorstores import Chroma
 from langchain_community.document_loaders import PyPDFLoader
