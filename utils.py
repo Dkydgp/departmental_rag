@@ -1,7 +1,7 @@
 # utils.py
 import os
 from dotenv import load_dotenv
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.chat_models import ChatOpenAI
 from langchain_community.vectorstores import Chroma
