@@ -1,28 +1,38 @@
 # utils.py
 import os
 from dotenv import load_dotenv
-from langchain.chat_models import ChatOpenAI
-from langchain.chains import RetrievalQA
 from langchain.vectorstores import Chroma
 from langchain.embeddings import OpenAIEmbeddings
+from langchain.chains import RetrievalQA
+from langchain.chat_models import ChatOpenAI
 
 load_dotenv()
-PERSIST_DIR = os.getenv("PERSIST_DIR", "embeddings")
-USE_OPENAI = bool(os.getenv("OPENAI_API_KEY"))
+
+def get_embeddings():
+    """Embedding model from OpenRouter"""
+    model = os.getenv("OPENROUTER_EMBED_MODEL", "openai/text-embedding-3-small")
+    return OpenAIEmbeddings(
+        model=model,
+        openai_api_key=os.getenv("OPENROUTER_API_KEY"),
+        openai_api_base=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+    )
+
+def get_openrouter_llm(temperature=0.2):
+    """Chat LLM from OpenRouter"""
+    model = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-chat")
+    return ChatOpenAI(
+        model=model,
+        temperature=temperature,
+        openai_api_key=os.getenv("OPENROUTER_API_KEY"),
+        openai_api_base=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+    )
 
 def get_retriever(k=4):
-    if USE_OPENAI:
-        emb = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"),
-                               model=os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"))
-    else:
-        from langchain.embeddings import HuggingFaceEmbeddings
-        emb = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    db = Chroma(persist_directory=PERSIST_DIR, embedding_function=emb)
+    embeddings = get_embeddings()
+    db = Chroma(persist_directory=os.getenv("PERSIST_DIR", "embeddings"), embedding_function=embeddings)
     return db.as_retriever(search_kwargs={"k": k})
 
-def make_qa_chain(retriever, temperature=0.2, model_name=None):
-    if not model_name:
-        model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    llm = ChatOpenAI(model=model_name, temperature=temperature)
+def make_qa_chain(retriever, temperature=0.2):
+    llm = get_openrouter_llm(temperature)
     qa = RetrievalQA.from_chain_type(llm=llm, retriever=retriever, return_source_documents=True)
     return qa
