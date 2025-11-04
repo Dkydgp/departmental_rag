@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 from supabase import create_client
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_community.document_loaders import PyPDFLoader
 
