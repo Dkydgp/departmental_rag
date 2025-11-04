@@ -5,10 +5,10 @@ import requests
 from dotenv import load_dotenv
 from tqdm import tqdm
 from supabase import create_client
-from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import Chroma
+from langchain_community.vectorstores import Chroma
+from langchain_community.document_loaders import PyPDFLoader
 
 load_dotenv()
 
