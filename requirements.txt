@@ -1,8 +1,12 @@
-langchain>=0.0.300
-chromadb>=0.3.26
-pypdf>=3.15.0
+# requirements.txt
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-core>=0.3.0
+langchain-chroma>=0.1.0
+chromadb>=0.4.0
+pypdf
+streamlit
 python-dotenv
-streamlit>=1.24.0
 openai
 supabase
 tqdm
