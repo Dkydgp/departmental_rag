@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: departmental-rag-assistant
+    env: python
+    region: singapore
+    buildCommand: |
+      pip install -r requirements.txt
+      python rag_llama.py
+    startCommand: streamlit run app_llama.py --server.port=$PORT --server.address=0.0.0.0
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: OPENROUTER_MODEL
+        value: deepseek/deepseek-chat
+      - key: OPENROUTER_EMBED_MODEL
+        value: openai/text-embedding-3-small
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: books
+      - key: PERSIST_DIR
+        value: embeddings
