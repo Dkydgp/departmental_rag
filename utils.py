@@ -1,11 +1,14 @@
 # utils.py
 import os
-from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.chains import RetrievalQA
 from langchain_openai import OpenAIEmbeddings
 from langchain.chat_models import ChatOpenAI
+from langchain.chains.combine_documents import RetrievalQA
+
+
+
+
 load_dotenv()
 
 def get_embeddings():
