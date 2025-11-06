@@ -8,6 +8,7 @@ import tempfile
 import shutil
 import hashlib
 import json
+import chromadb
 import argparse
 from datetime import datetime
 from supabase import create_client
@@ -19,7 +20,7 @@ from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, StorageCon
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core.node_parser import SimpleNodeParser
-from chromadb import PersistentClient
+
 
 # Load environment variables
 load_dotenv()
