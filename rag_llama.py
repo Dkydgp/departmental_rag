@@ -18,6 +18,70 @@ from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core.node_parser import SimpleNodeParser
 from chromadb import PersistentClient
+from urllib.parse import quote
+import requests
+import hashlib
+import os
+from tqdm import tqdm
+
+def fetch_pdfs(force_download=False):
+    """Fetch PDFs from public Supabase bucket 'Books' (project: departmental_rag)."""
+    print("\n📥 Fetching PDFs from public Supabase bucket...")
+    print(f"🔗 Project: departmental_rag | Bucket: {BUCKET}")
+
+    try:
+        # Public bucket URL prefix
+        base_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET}"
+        os.makedirs(TMP_DIR, exist_ok=True)
+
+        # === ADD YOUR PDF FILENAMES HERE (exact names as in Supabase) ===
+        pdf_files = [
+            "Aerospace Safety -I.pdf",
+            # "Exam Guide.pdf",
+            # "Safety Procedures.pdf",
+            # add additional PDF filenames here exactly as they appear
+        ]
+        # ===============================================================
+
+        if not pdf_files:
+            print("⚠️ No PDF filenames listed in the script. Add them to pdf_files.")
+            return []
+
+        print(f"✅ Attempting to download {len(pdf_files)} public PDF(s)")
+        metadata = load_metadata()
+        downloaded, skipped = [], 0
+
+        for filename in tqdm(pdf_files, desc="⬇️ Downloading PDFs"):
+            try:
+                encoded_name = quote(filename)  # encodes spaces and special chars
+                url = f"{base_url}/{encoded_name}"
+
+                response = requests.get(url, timeout=30)
+                response.raise_for_status()
+                data = response.content
+                file_hash = hashlib.md5(data).hexdigest()
+
+                # Skip unchanged
+                if not force_download and filename in metadata["files"]:
+                    if metadata["files"][filename].get("hash") == file_hash:
+                        skipped += 1
+                        continue
+
+                # Save locally
+                local_path = os.path.join(TMP_DIR, os.path.basename(filename))
+                with open(local_path, "wb") as f:
+                    f.write(data)
+                downloaded.append((local_path, filename, file_hash))
+
+            except Exception as e:
+                print(f"⚠️ Error downloading {filename}: {e}")
+
+        print(f"\n✅ Downloaded: {len(downloaded)} | ⏩ Skipped: {skipped}")
+        return downloaded
+
+    except Exception as e:
+        print(f"❌ Error fetching PDFs: {e}")
+        return []
 
 # Load environment variables
 load_dotenv()
@@ -65,73 +129,7 @@ def save_metadata(metadata):
 
 
 def fetch_pdfs(force_download=False):
-    """Download all PDFs from Supabase bucket 'Books'."""
-    print("\n📥 Fetching PDFs from Supabase...")
-    print(f"🔗 Project: departmental_rag | Bucket: {BUCKET}")
 
-    try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-        # Recursively list all PDFs
-        def list_all_files(bucket, path=""):
-            files = []
-            items = supabase.storage.from_(bucket).list(path=path)
-            for item in items:
-                if item["metadata"] is None:
-                    # It's a folder
-                    files += list_all_files(bucket, f"{path}{item['name']}/")
-                elif item["name"].endswith(".pdf"):
-                    files.append({"name": f"{path}{item['name']}"})
-            return files
-
-        files = list_all_files(BUCKET)
-        pdf_files = [f for f in files if f["name"].endswith(".pdf")]
-
-        if not pdf_files:
-            print("⚠️  No PDF files found in Supabase bucket 'Books'.")
-            print("👉 Check if your files are uploaded correctly.")
-            return []
-
-        print(f"✅ Found {len(pdf_files)} PDF(s) in bucket '{BUCKET}'")
-        os.makedirs(TMP_DIR, exist_ok=True)
-
-        metadata = load_metadata()
-        downloaded = []
-        skipped = 0
-
-        for file_info in tqdm(pdf_files, desc="⬇️ Downloading PDFs"):
-            filename = file_info["name"]
-
-            try:
-                # Download PDF (works with private buckets)
-                data = supabase.storage.from_(BUCKET).download(filename)
-                if not data:
-                    print(f"⚠️ Could not download {filename} — skipping.")
-                    continue
-
-                file_hash = hashlib.md5(data).hexdigest()
-
-                # Skip if unchanged
-                if not force_download and filename in metadata["files"]:
-                    if metadata["files"][filename].get("hash") == file_hash:
-                        skipped += 1
-                        continue
-
-                # Save to temporary directory
-                local_path = os.path.join(TMP_DIR, os.path.basename(filename))
-                with open(local_path, "wb") as f:
-                    f.write(data)
-                downloaded.append((local_path, filename, file_hash))
-
-            except Exception as e:
-                print(f"⚠️  Error downloading {filename}: {e}")
-
-        print(f"\n✅ Downloaded: {len(downloaded)} | ⏩ Skipped: {skipped}")
-        return downloaded
-
-    except Exception as e:
-        print(f"❌ Error connecting to Supabase: {e}")
-        return []
 
 
 def build_index(force_rebuild=False):
