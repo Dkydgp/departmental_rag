@@ -22,21 +22,23 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core.node_parser import SimpleNodeParser
 
 
-# Load environment variables
+# ============================================================
+# 🔧 Load environment variables
+# ============================================================
 load_dotenv()
 
-# Configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-BUCKET = os.getenv("SUPABASE_BUCKET", "Books")  # 👈 Capital B is important
+BUCKET = os.getenv("SUPABASE_BUCKET", "Books")  # 👈 Capital B important
 PERSIST_DIR = os.getenv("PERSIST_DIR", "embeddings")
 TMP_DIR = "tmp_pdfs"
 METADATA_FILE = os.path.join(PERSIST_DIR, "index_metadata.json")
 
 
+# ============================================================
 # ✅ Validate environment
+# ============================================================
 def validate_environment():
-    """Validate required environment variables."""
     required = [
         "SUPABASE_URL",
         "SUPABASE_KEY",
@@ -44,7 +46,7 @@ def validate_environment():
         "OPENROUTER_EMBED_MODEL",
         "OPENROUTER_BASE_URL",
     ]
-    missing = [var for var in required if not os.getenv(var)]
+    missing = [v for v in required if not os.getenv(v)]
     if missing:
         print(f"❌ Missing environment variables: {', '.join(missing)}")
         return False
@@ -52,9 +54,10 @@ def validate_environment():
     return True
 
 
-# ✅ Metadata management
+# ============================================================
+# 🧠 Metadata utilities
+# ============================================================
 def load_metadata():
-    """Load existing index metadata."""
     if os.path.exists(METADATA_FILE):
         with open(METADATA_FILE, "r") as f:
             return json.load(f)
@@ -62,16 +65,17 @@ def load_metadata():
 
 
 def save_metadata(metadata):
-    """Save index metadata."""
     os.makedirs(PERSIST_DIR, exist_ok=True)
     metadata["last_updated"] = datetime.now().isoformat()
     with open(METADATA_FILE, "w") as f:
         json.dump(metadata, f, indent=2)
 
 
-# ✅ Fetch PDFs (for PUBLIC Supabase bucket)
+# ============================================================
+# 📥 Fetch PDFs from Supabase (public)
+# ============================================================
 def fetch_pdfs(force_download=False):
-    """Fetch PDFs from public Supabase bucket 'Books' (project: departmental_rag)."""
+    """Fetch PDFs from public Supabase bucket 'Books'."""
     print("\n📥 Fetching PDFs from public Supabase bucket...")
     print(f"🔗 Project: departmental_rag | Bucket: {BUCKET}")
 
@@ -79,14 +83,12 @@ def fetch_pdfs(force_download=False):
         base_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET}"
         os.makedirs(TMP_DIR, exist_ok=True)
 
-        # === Add all PDF filenames exactly as they appear in Supabase ===
+        # === Add filenames exactly as in Supabase ===
         pdf_files = [
             "Aerospace Safety -I.pdf",
-            # Add more filenames here if you have them:
-            # "Exam Guide.pdf",
-            # "Safety Procedures.pdf",
+            # Add more like: "Exam Guide.pdf", "Safety Procedures.pdf"
         ]
-        # =================================================================
+        # ============================================
 
         if not pdf_files:
             print("⚠️ No PDF filenames listed in the script. Add them to pdf_files.")
@@ -98,15 +100,15 @@ def fetch_pdfs(force_download=False):
 
         for filename in tqdm(pdf_files, desc="⬇️ Downloading PDFs"):
             try:
-                encoded_name = quote(filename)  # encode spaces and special chars
-                url = f"{base_url}/{encoded_name}"
+                encoded = quote(filename)
+                url = f"{base_url}/{encoded}"
 
                 response = requests.get(url, timeout=30)
                 response.raise_for_status()
                 data = response.content
                 file_hash = hashlib.md5(data).hexdigest()
 
-                # Skip unchanged files
+                # Skip unchanged
                 if not force_download and filename in metadata["files"]:
                     if metadata["files"][filename].get("hash") == file_hash:
                         skipped += 1
@@ -116,7 +118,6 @@ def fetch_pdfs(force_download=False):
                 local_path = os.path.join(TMP_DIR, os.path.basename(filename))
                 with open(local_path, "wb") as f:
                     f.write(data)
-
                 downloaded.append((local_path, filename, file_hash))
 
             except Exception as e:
@@ -130,7 +131,9 @@ def fetch_pdfs(force_download=False):
         return []
 
 
-# ✅ Build vector index
+# ============================================================
+# ⚡ Build the vector index
+# ============================================================
 def build_index(force_rebuild=False):
     """Build the RAG vector index."""
     print("\n" + "=" * 60)
@@ -163,8 +166,9 @@ def build_index(force_rebuild=False):
             api_key=os.getenv("OPENROUTER_API_KEY"),
         )
 
-        print(f"💾 Setting up ChromaDB: {PERSIST_DIR}")
-        chroma_client = PersistentClient(path=PERSIST_DIR)
+        # ✅ Render-safe local Chroma client
+        print("💾 Setting up local in-memory ChromaDB (Render-safe)...")
+        chroma_client = chromadb.Client()
 
         if force_rebuild:
             try:
@@ -219,9 +223,10 @@ def build_index(force_rebuild=False):
             print("🧹 Cleaned up temporary files")
 
 
-# ✅ Show index status
+# ============================================================
+# 📊 Show index status
+# ============================================================
 def show_status():
-    """Show current index status."""
     print("\n" + "=" * 60)
     print("📊 Index Status")
     print("=" * 60)
@@ -242,7 +247,9 @@ def show_status():
     print("=" * 60 + "\n")
 
 
-# ✅ Main entry
+# ============================================================
+# 🚀 Main
+# ============================================================
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RAG Index Builder")
     parser.add_argument("--build", action="store_true", help="Build/update index")
