@@ -166,9 +166,10 @@ def build_index(force_rebuild=False):
             api_key=os.getenv("OPENROUTER_API_KEY"),
         )
 
-        # ✅ Render-safe local Chroma client
-        print("💾 Setting up local in-memory ChromaDB (Render-safe)...")
-        chroma_client = chromadb.Client()
+        # ✅ Render-safe Chroma client with persistence
+        print("💾 Setting up local in-process ChromaDB (Render-safe)...")
+        os.makedirs(PERSIST_DIR, exist_ok=True)
+        chroma_client = chromadb.Client(settings={"persist_directory": PERSIST_DIR})
 
         if force_rebuild:
             try:
