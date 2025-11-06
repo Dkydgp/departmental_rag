@@ -13,75 +13,13 @@ from datetime import datetime
 from supabase import create_client
 from dotenv import load_dotenv
 from tqdm import tqdm
+from urllib.parse import quote
+import requests
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, StorageContext
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core.node_parser import SimpleNodeParser
 from chromadb import PersistentClient
-from urllib.parse import quote
-import requests
-import hashlib
-import os
-from tqdm import tqdm
-
-def fetch_pdfs(force_download=False):
-    """Fetch PDFs from public Supabase bucket 'Books' (project: departmental_rag)."""
-    print("\n📥 Fetching PDFs from public Supabase bucket...")
-    print(f"🔗 Project: departmental_rag | Bucket: {BUCKET}")
-
-    try:
-        # Public bucket URL prefix
-        base_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET}"
-        os.makedirs(TMP_DIR, exist_ok=True)
-
-        # === ADD YOUR PDF FILENAMES HERE (exact names as in Supabase) ===
-        pdf_files = [
-            "Aerospace Safety -I.pdf",
-            # "Exam Guide.pdf",
-            # "Safety Procedures.pdf",
-            # add additional PDF filenames here exactly as they appear
-        ]
-        # ===============================================================
-
-        if not pdf_files:
-            print("⚠️ No PDF filenames listed in the script. Add them to pdf_files.")
-            return []
-
-        print(f"✅ Attempting to download {len(pdf_files)} public PDF(s)")
-        metadata = load_metadata()
-        downloaded, skipped = [], 0
-
-        for filename in tqdm(pdf_files, desc="⬇️ Downloading PDFs"):
-            try:
-                encoded_name = quote(filename)  # encodes spaces and special chars
-                url = f"{base_url}/{encoded_name}"
-
-                response = requests.get(url, timeout=30)
-                response.raise_for_status()
-                data = response.content
-                file_hash = hashlib.md5(data).hexdigest()
-
-                # Skip unchanged
-                if not force_download and filename in metadata["files"]:
-                    if metadata["files"][filename].get("hash") == file_hash:
-                        skipped += 1
-                        continue
-
-                # Save locally
-                local_path = os.path.join(TMP_DIR, os.path.basename(filename))
-                with open(local_path, "wb") as f:
-                    f.write(data)
-                downloaded.append((local_path, filename, file_hash))
-
-            except Exception as e:
-                print(f"⚠️ Error downloading {filename}: {e}")
-
-        print(f"\n✅ Downloaded: {len(downloaded)} | ⏩ Skipped: {skipped}")
-        return downloaded
-
-    except Exception as e:
-        print(f"❌ Error fetching PDFs: {e}")
-        return []
 
 # Load environment variables
 load_dotenv()
@@ -95,6 +33,7 @@ TMP_DIR = "tmp_pdfs"
 METADATA_FILE = os.path.join(PERSIST_DIR, "index_metadata.json")
 
 
+# ✅ Validate environment
 def validate_environment():
     """Validate required environment variables."""
     required = [
@@ -112,6 +51,7 @@ def validate_environment():
     return True
 
 
+# ✅ Metadata management
 def load_metadata():
     """Load existing index metadata."""
     if os.path.exists(METADATA_FILE):
@@ -128,10 +68,68 @@ def save_metadata(metadata):
         json.dump(metadata, f, indent=2)
 
 
+# ✅ Fetch PDFs (for PUBLIC Supabase bucket)
 def fetch_pdfs(force_download=False):
+    """Fetch PDFs from public Supabase bucket 'Books' (project: departmental_rag)."""
+    print("\n📥 Fetching PDFs from public Supabase bucket...")
+    print(f"🔗 Project: departmental_rag | Bucket: {BUCKET}")
+
+    try:
+        base_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET}"
+        os.makedirs(TMP_DIR, exist_ok=True)
+
+        # === Add all PDF filenames exactly as they appear in Supabase ===
+        pdf_files = [
+            "Aerospace Safety -I.pdf",
+            # Add more filenames here if you have them:
+            # "Exam Guide.pdf",
+            # "Safety Procedures.pdf",
+        ]
+        # =================================================================
+
+        if not pdf_files:
+            print("⚠️ No PDF filenames listed in the script. Add them to pdf_files.")
+            return []
+
+        print(f"✅ Attempting to download {len(pdf_files)} public PDF(s)")
+        metadata = load_metadata()
+        downloaded, skipped = [], 0
+
+        for filename in tqdm(pdf_files, desc="⬇️ Downloading PDFs"):
+            try:
+                encoded_name = quote(filename)  # encode spaces and special chars
+                url = f"{base_url}/{encoded_name}"
+
+                response = requests.get(url, timeout=30)
+                response.raise_for_status()
+                data = response.content
+                file_hash = hashlib.md5(data).hexdigest()
+
+                # Skip unchanged files
+                if not force_download and filename in metadata["files"]:
+                    if metadata["files"][filename].get("hash") == file_hash:
+                        skipped += 1
+                        continue
+
+                # Save locally
+                local_path = os.path.join(TMP_DIR, os.path.basename(filename))
+                with open(local_path, "wb") as f:
+                    f.write(data)
+
+                downloaded.append((local_path, filename, file_hash))
+
+            except Exception as e:
+                print(f"⚠️ Error downloading {filename}: {e}")
+
+        print(f"\n✅ Downloaded: {len(downloaded)} | ⏩ Skipped: {skipped}")
+        return downloaded
+
+    except Exception as e:
+        print(f"❌ Error fetching PDFs: {e}")
+        return []
 
 
-
+# ✅ Build vector index
 def build_index(force_rebuild=False):
     """Build the RAG vector index."""
     print("\n" + "=" * 60)
@@ -211,7 +209,6 @@ def build_index(force_rebuild=False):
     except Exception as e:
         print(f"\n❌ Error: {e}")
         import traceback
-
         traceback.print_exc()
         return False
 
@@ -221,6 +218,7 @@ def build_index(force_rebuild=False):
             print("🧹 Cleaned up temporary files")
 
 
+# ✅ Show index status
 def show_status():
     """Show current index status."""
     print("\n" + "=" * 60)
@@ -243,6 +241,7 @@ def show_status():
     print("=" * 60 + "\n")
 
 
+# ✅ Main entry
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RAG Index Builder")
     parser.add_argument("--build", action="store_true", help="Build/update index")
