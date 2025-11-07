@@ -8,19 +8,18 @@ import tempfile
 import shutil
 import hashlib
 import json
-import chromadb
 import argparse
 from datetime import datetime
-from supabase import create_client
-from dotenv import load_dotenv
-from tqdm import tqdm
 from urllib.parse import quote
 import requests
+from tqdm import tqdm
+from dotenv import load_dotenv
+from supabase import create_client
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, StorageContext
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core.node_parser import SimpleNodeParser
-
+from chromadb import PersistentClient
 
 # ============================================================
 # 🔧 Load environment variables
@@ -166,17 +165,18 @@ def build_index(force_rebuild=False):
             api_key=os.getenv("OPENROUTER_API_KEY"),
         )
 
-        # ✅ Render-safe Chroma client with persistence
-        print("💾 Setting up local in-process ChromaDB (Render-safe)...")
+        # ✅ Render-safe persistent Chroma client
+        print("💾 Setting up local persistent ChromaDB (Render-safe)...")
         os.makedirs(PERSIST_DIR, exist_ok=True)
-        chroma_client = chromadb.Client(settings={"persist_directory": PERSIST_DIR})
+        chroma_client = PersistentClient(path=PERSIST_DIR)
 
+        # Rebuild handling
         if force_rebuild:
             try:
-                chroma_client.delete_collection(name="Books")
-                print("🗑️  Deleted old collection")
-            except Exception:
-                pass
+                chroma_client.delete_collection("Books")
+                print("🗑️  Old collection removed before rebuild")
+            except Exception as e:
+                print(f"⚠️ Could not delete old collection: {e}")
 
         vector_store = ChromaVectorStore(
             chroma_client=chroma_client, collection_name="Books"
