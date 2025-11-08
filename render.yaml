@@ -7,7 +7,7 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       # Optional: Uncomment next line ONLY when you want to rebuild the index during deployment
-      # python rag_llama.py --build
+        python rag_llama.py --build
 
     startCommand: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true
 
