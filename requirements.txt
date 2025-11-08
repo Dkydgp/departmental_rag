@@ -9,7 +9,7 @@ supabase==2.3.5
 
 # LlamaIndex (core + embeddings + vector stores)
 llama-index==0.11.18
-chromadb==0.5.5
+chromadb==0.4.24   # ✅ compatible with Supabase (uses httpx<0.26)
 
 # LangChain (for ingest.py)
 langchain==0.3.8
