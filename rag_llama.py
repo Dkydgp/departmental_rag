@@ -28,8 +28,8 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-BUCKET = os.getenv("SUPABASE_BUCKET", "Books")  # 👈 Capital B important
-PERSIST_DIR = os.getenv("PERSIST_DIR", "embeddings")
+BUCKET = os.getenv("SUPABASE_BUCKET", "books").strip().lower()
+PERSIST_DIR = os.getenv("PERSIST_DIR", "storage")
 TMP_DIR = "tmp_pdfs"
 METADATA_FILE = os.path.join(PERSIST_DIR, "index_metadata.json")
 
@@ -71,50 +71,42 @@ def save_metadata(metadata):
 
 
 # ============================================================
-# 📥 Fetch PDFs from Supabase (public)
+# 📥 Fetch PDFs from Supabase
 # ============================================================
 def fetch_pdfs(force_download=False):
-    """Fetch PDFs from public Supabase bucket 'Books'."""
-    print("\n📥 Fetching PDFs from public Supabase bucket...")
-    print(f"🔗 Project: departmental_rag | Bucket: {BUCKET}")
+    print(f"\n📥 Fetching PDFs from Supabase bucket: {BUCKET}")
 
     try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        files = supabase.storage.from_(BUCKET).list()
+        pdf_files = [f["name"] for f in files if f["name"].endswith(".pdf")]
+
+        if not pdf_files:
+            print("⚠️ No PDFs found in Supabase bucket.")
+            return []
+
         base_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET}"
         os.makedirs(TMP_DIR, exist_ok=True)
 
-        # === Add filenames exactly as in Supabase ===
-        pdf_files = [
-            "Aerospace Safety -I.pdf",
-            # Add more like: "Exam Guide.pdf", "Safety Procedures.pdf"
-        ]
-        # ============================================
-
-        if not pdf_files:
-            print("⚠️ No PDF filenames listed in the script. Add them to pdf_files.")
-            return []
-
-        print(f"✅ Attempting to download {len(pdf_files)} public PDF(s)")
         metadata = load_metadata()
         downloaded, skipped = [], 0
 
         for filename in tqdm(pdf_files, desc="⬇️ Downloading PDFs"):
-            try:
-                encoded = quote(filename)
-                url = f"{base_url}/{encoded}"
+            encoded = quote(filename)
+            url = f"{base_url}/{encoded}"
 
+            try:
                 response = requests.get(url, timeout=30)
                 response.raise_for_status()
                 data = response.content
                 file_hash = hashlib.md5(data).hexdigest()
 
-                # Skip unchanged
                 if not force_download and filename in metadata["files"]:
                     if metadata["files"][filename].get("hash") == file_hash:
                         skipped += 1
                         continue
 
-                # Save locally
-                local_path = os.path.join(TMP_DIR, os.path.basename(filename))
+                local_path = os.path.join(TMP_DIR, filename)
                 with open(local_path, "wb") as f:
                     f.write(data)
                 downloaded.append((local_path, filename, file_hash))
@@ -134,7 +126,6 @@ def fetch_pdfs(force_download=False):
 # ⚡ Build the vector index
 # ============================================================
 def build_index(force_rebuild=False):
-    """Build the RAG vector index."""
     print("\n" + "=" * 60)
     print("🚀 Building RAG Index")
     print("=" * 60)
@@ -144,7 +135,7 @@ def build_index(force_rebuild=False):
 
     pdf_data = fetch_pdfs(force_download=force_rebuild)
     if not pdf_data:
-        print("\n⚠️  No PDFs to process")
+        print("\n⚠️ No PDFs to process.")
         return True
 
     try:
@@ -154,44 +145,32 @@ def build_index(force_rebuild=False):
         print(f"✅ Loaded {len(docs)} document(s)")
 
         print("🔪 Splitting into chunks...")
-        parser = SimpleNodeParser.from_defaults(chunk_size=1024, chunk_overlap=200)
+        parser = SimpleNodeParser.from_defaults(chunk_size=800, chunk_overlap=150)
         nodes = parser.get_nodes_from_documents(docs, show_progress=True)
         print(f"✅ Created {len(nodes)} nodes")
+        print(f"🔤 Embedding {len(nodes)} nodes using {os.getenv('OPENROUTER_EMBED_MODEL')}")
 
-        print(f"🤖 Initializing embeddings: {os.getenv('OPENROUTER_EMBED_MODEL')}")
         embed_model = OpenAIEmbedding(
-            model=os.getenv("OPENROUTER_EMBED_MODEL"),
+            model=os.getenv("OPENROUTER_EMBED_MODEL", "text-embedding-3-small"),
             api_base=os.getenv("OPENROUTER_BASE_URL"),
             api_key=os.getenv("OPENROUTER_API_KEY"),
         )
 
-        # ✅ Render-safe persistent Chroma client
-        print("💾 Setting up local persistent ChromaDB (Render-safe)...")
+        print("💾 Setting up Chroma vector store...")
         os.makedirs(PERSIST_DIR, exist_ok=True)
         chroma_client = PersistentClient(path=PERSIST_DIR)
 
-        # Rebuild handling
         if force_rebuild:
             try:
                 chroma_client.delete_collection("Books")
-                print("🗑️  Old collection removed before rebuild")
-            except Exception as e:
-                print(f"⚠️ Could not delete old collection: {e}")
+            except Exception:
+                shutil.rmtree(PERSIST_DIR, ignore_errors=True)
 
-        vector_store = ChromaVectorStore(
-            chroma_client=chroma_client, collection_name="Books"
-        )
+        vector_store = ChromaVectorStore(chroma_client=chroma_client, collection_name="Books")
         storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
         print("⚡ Building vector index...")
-        index = VectorStoreIndex(
-            nodes,
-            storage_context=storage_context,
-            embed_model=embed_model,
-            show_progress=True,
-        )
-
-        print(f"💾 Saving index to: {PERSIST_DIR}")
+        index = VectorStoreIndex(nodes, storage_context=storage_context, embed_model=embed_model)
         index.storage_context.persist(persist_dir=PERSIST_DIR)
 
         metadata = load_metadata()
@@ -204,16 +183,13 @@ def build_index(force_rebuild=False):
         metadata["total_nodes"] = len(nodes)
         save_metadata(metadata)
 
-        print("\n" + "=" * 60)
-        print("✅ SUCCESS! RAG Index Built")
+        print("\n✅ SUCCESS! RAG Index Built")
         print(f"📊 Documents: {len(docs)} | Nodes: {len(nodes)}")
-        print(f"📁 Saved to: {PERSIST_DIR}")
-        print("=" * 60 + "\n")
-
+        print(f"📁 Saved to: {PERSIST_DIR}\n")
         return True
 
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"❌ Error: {e}")
         import traceback
         traceback.print_exc()
         return False
