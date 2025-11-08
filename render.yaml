@@ -3,13 +3,8 @@ services:
     name: departmental-rag-assistant
     env: python
     region: singapore
-
-    buildCommand: |
-      pip install -r requirements.txt
-      python rag_llama.py --build  # ✅ rebuild index each deploy
-
-    startCommand: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true
-
+    buildCommand: pip install -r requirements.txt
+    startCommand: bash -c "python rag_llama.py --build && streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true"
     envVars:
       - key: OPENROUTER_API_KEY
         sync: false
