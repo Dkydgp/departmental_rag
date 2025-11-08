@@ -1,3 +1,21 @@
-.env
-embeddings/
+# Python cache
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+env/
+
+# Environment files
+.env
+
+# LlamaIndex / Chroma / Vector Storage
+storage/
+embeddings/
+tmp_pdfs/
+index_metadata.json
+
+# Streamlit
+.streamlit/
