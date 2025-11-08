@@ -6,7 +6,7 @@ services:
 
     buildCommand: |
       pip install -r requirements.txt
-      python rag_llama.py --build   # ✅ builds the index automatically
+      python rag_llama.py --build  # ✅ rebuild index each deploy
 
     startCommand: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true
 
@@ -26,7 +26,4 @@ services:
       - key: SUPABASE_BUCKET
         value: books
       - key: PERSIST_DIR
-        value: /data/storage    # ✅ persistent storage path
-    disk:
-      name: rag-storage
-      mountPath: /data
+        value: storage
