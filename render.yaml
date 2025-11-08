@@ -3,10 +3,14 @@ services:
     name: departmental-rag-assistant
     env: python
     region: singapore
+
     buildCommand: |
       pip install -r requirements.txt
-      python rag_llama.py
-    startCommand: streamlit run app_llama.py --server.port=$PORT --server.address=0.0.0.0
+      # Optional: Uncomment next line ONLY when you want to rebuild the index during deployment
+      # python rag_llama.py --build
+
+    startCommand: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true
+
     envVars:
       - key: OPENROUTER_API_KEY
         sync: false
@@ -15,7 +19,7 @@ services:
       - key: OPENROUTER_MODEL
         value: deepseek/deepseek-chat
       - key: OPENROUTER_EMBED_MODEL
-        value: openai/text-embedding-3-small
+        value: text-embedding-3-small
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
@@ -23,4 +27,4 @@ services:
       - key: SUPABASE_BUCKET
         value: books
       - key: PERSIST_DIR
-        value: embeddings
+        value: storage
