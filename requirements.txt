@@ -1,11 +1,26 @@
-llama-index
-llama-index-readers-file
-llama-index-embeddings-openai
-llama-index-vector-stores-chroma
-chromadb
-streamlit
-python-dotenv
-openai
-supabase
-tqdm
-pypdf
+# Core dependencies
+streamlit==1.40.1
+python-dotenv==1.0.1
+tqdm==4.66.5
+requests==2.32.3
+
+# Supabase client
+supabase==2.3.5
+
+# LlamaIndex (core + embeddings + vector stores)
+llama-index==0.11.18
+chromadb==0.5.5
+
+# LangChain (for ingest.py)
+langchain==0.3.8
+langchain-openai==0.2.5
+langchain-community==0.3.7
+
+# OpenAI / OpenRouter compatible API
+openai==1.52.2
+
+# PDF handling
+pypdf==4.3.1
+
+# Optional utilities
+urllib3==2.2.3
