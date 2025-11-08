@@ -1,4 +1,9 @@
 # ingest.py
+"""
+Ingests PDFs from Supabase, splits text, and creates Chroma vector embeddings.
+Run manually before deploying Streamlit app.
+"""
+
 import os
 import tempfile
 import requests
@@ -18,8 +23,8 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "books")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-EMBED_MODEL = os.getenv("OPENROUTER_EMBED_MODEL", "openai/text-embedding-3-small")
-PERSIST_DIR = os.getenv("PERSIST_DIR", "embeddings")
+EMBED_MODEL = os.getenv("OPENROUTER_EMBED_MODEL", "text-embedding-3-small")
+PERSIST_DIR = os.getenv("PERSIST_DIR", "storage")
 
 # Initialize Supabase
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -45,6 +50,9 @@ def download_pdf(url):
 def load_pdfs_from_supabase():
     """Load all Supabase PDFs into LangChain Documents"""
     urls = list_pdfs()
+    if not urls:
+        print("⚠️ No PDFs found in Supabase bucket.")
+        return []
     print(f"📚 Found {len(urls)} PDFs in Supabase bucket.")
     docs = []
     for url in tqdm(urls, desc="Downloading PDFs"):
@@ -72,13 +80,19 @@ def create_vectorstore(chunks):
     print("✅ Embeddings stored in:", PERSIST_DIR)
 
 def main():
-    print("🚀 Starting ingestion from Supabase...")
-    docs = load_pdfs_from_supabase()
-    print(f"📄 Loaded {len(docs)} pages from PDFs.")
-    chunks = chunk_documents(docs)
-    print(f"🧩 Split into {len(chunks)} text chunks.")
-    create_vectorstore(chunks)
-    print("🎉 Ingestion complete. Ready to chat!")
+    try:
+        print("🚀 Starting ingestion from Supabase...")
+        docs = load_pdfs_from_supabase()
+        if not docs:
+            print("⚠️ No PDFs to process. Exiting.")
+            return
+        print(f"📄 Loaded {len(docs)} pages.")
+        chunks = chunk_documents(docs)
+        print(f"🧩 Split into {len(chunks)} chunks.")
+        create_vectorstore(chunks)
+        print("🎉 Ingestion complete. Ready to chat!")
+    except Exception as e:
+        print(f"❌ Error during ingestion: {e}")
 
 if __name__ == "__main__":
     main()
